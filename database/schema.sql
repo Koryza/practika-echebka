@@ -22,3 +22,16 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS resource_alerts (
+    id INTEGER PRIMARY KEY,
+    recorded_at INTEGER NOT NULL,
+    resource TEXT NOT NULL CHECK (resource IN ('cpu', 'memory', 'disk')),
+    target TEXT NOT NULL,
+    measured REAL NOT NULL CHECK (measured BETWEEN 0 AND 100),
+    threshold INTEGER NOT NULL CHECK (threshold BETWEEN 0 AND 100),
+    CHECK (measured > threshold)
+);
+
+CREATE INDEX IF NOT EXISTS idx_resource_alerts_repeat
+    ON resource_alerts (resource, target, recorded_at);

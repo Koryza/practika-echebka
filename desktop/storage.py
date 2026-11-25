@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import time_ns
 
+from .alerts import ALERT_LIMITS, Alert, AlertSettings
 from .settings import SETTINGS_LIMITS, Settings
 
 SCHEMA = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
@@ -51,24 +52,36 @@ class Storage:
             )
 
     def load_settings(self) -> Settings:
+        return Settings(**self._load_numeric_settings(SETTINGS_LIMITS))
+
+    def load_alert_settings(self) -> AlertSettings:
+        return AlertSettings(**self._load_numeric_settings(ALERT_LIMITS))
+
+    def _load_numeric_settings(self, limits: dict[str, tuple[int, int]]) -> dict[str, int]:
         with closing(sqlite3.connect(self.path)) as db:
             stored = dict(db.execute("SELECT key, value FROM settings"))
         values = {}
-        for key, (minimum, maximum) in SETTINGS_LIMITS.items():
+        for key, (minimum, maximum) in limits.items():
             try:
                 value = int(stored.get(key, ""))
             except ValueError:
                 continue
             if minimum <= value <= maximum:
                 values[key] = value
-        return Settings(**values)
+        return values
 
     def save_settings(self, settings: Settings) -> None:
+        self._save_numeric_settings(asdict(settings))
+
+    def save_alert_settings(self, settings: AlertSettings) -> None:
+        self._save_numeric_settings(asdict(settings))
+
+    def _save_numeric_settings(self, values: dict[str, int]) -> None:
         with closing(sqlite3.connect(self.path)) as db, db:
             db.executemany(
                 "INSERT INTO settings (key, value) VALUES (?, ?) "
                 "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                ((key, str(value)) for key, value in asdict(settings).items()),
+                ((key, str(value)) for key, value in values.items()),
             )
 
     def save_metric(self, recorded_at: int, cpu: float | None, memory: float | None) -> None:
@@ -97,6 +110,34 @@ class Storage:
             "SELECT created_at, category, operation, description, status FROM events "
             "WHERE id <= ? ORDER BY id DESC LIMIT ? OFFSET ?",
             "SELECT MAX(id) FROM events",
+            page,
+            through_id,
+        )
+
+    def record_alerts(self, alerts: list[Alert], repeat_seconds: int) -> list[Alert]:
+        created = []
+        with closing(sqlite3.connect(self.path)) as db, db:
+            for alert in alerts:
+                # Проверка паузы и вставка выполняются одним запросом в транзакции.
+                cursor = db.execute(
+                    "INSERT INTO resource_alerts (recorded_at, resource, target, measured, threshold) "
+                    "SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS ("
+                    "SELECT 1 FROM resource_alerts WHERE resource = ? AND target = ? AND recorded_at > ?"
+                    ")",
+                    (
+                        alert.recorded_at, alert.resource, alert.target, alert.measured, alert.threshold,
+                        alert.resource, alert.target, alert.recorded_at - repeat_seconds * 1000,
+                    ),
+                )
+                if cursor.rowcount == 1:
+                    created.append(alert)
+        return created
+
+    def alerts(self, page: int, through_id: int | None = None) -> HistoryPage:
+        return self._page(
+            "SELECT recorded_at, resource, target, measured, threshold FROM resource_alerts "
+            "WHERE id <= ? ORDER BY id DESC LIMIT ? OFFSET ?",
+            "SELECT MAX(id) FROM resource_alerts",
             page,
             through_id,
         )

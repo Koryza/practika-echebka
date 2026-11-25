@@ -9,11 +9,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QProgressBar,
+    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from .alerts import RESOURCE_LABELS, Alert
+from .alerts_panel import AlertsPanel
 from .files_panel import FilesPanel
 from .history_panel import HistoryPanel
 from .http_api import EMULATOR_HOST, LocalApi
@@ -46,6 +49,8 @@ QCheckBox::indicator:checked { background: #67dcad; border-color: #67dcad; }
 QCheckBox::indicator:disabled { border-color: #3e5069; }
 QCheckBox::indicator:checked:disabled { background: #3e5069; }
 QDateEdit:disabled { color: #8795a8; border-color: #29364a; }
+QPushButton#alertNotice { background: #45351b; color: #ffe2a3; border-color: #c49138; }
+QPushButton#alertNotice:hover { background: #594322; }
 QPushButton:disabled { background: #182230; color: #8795a8; }
 QTableWidget { background: #182230; gridline-color: #29364a; selection-background-color: #334966; }
 QCalendarWidget QWidget { background: #182230; }
@@ -138,6 +143,16 @@ class MonitorWindow(QMainWindow):
         tabs.addTab(self._processes, "Процессы")
         self._history = HistoryPanel(db_path)
         tabs.addTab(self._history, "История и настройки")
+        self._alerts = AlertsPanel()
+        tabs.addTab(self._alerts, "Уведомления")
+        self._alert_notice = QPushButton()
+        self._alert_notice.setObjectName("alertNotice")
+        self._alert_notice.clicked.connect(lambda: tabs.setCurrentWidget(self._alerts))
+        self.statusBar().addPermanentWidget(self._alert_notice)
+        self._alert_notice.hide()
+        self._alert_timer = QTimer(self)
+        self._alert_timer.setSingleShot(True)
+        self._alert_timer.timeout.connect(self._alert_notice.hide)
         self._files.workspace_changed.connect(self._history.set_workspace)
         self._files.workspace_selected.connect(self._history.workspace_result)
         self._history.workspace_requested.connect(self._files.set_workspace_root)
@@ -215,6 +230,13 @@ class MonitorWindow(QMainWindow):
         self.sample_requested.connect(self._worker.sample)
         self._worker.sampled.connect(self._show_sample)
         self._worker.failed.connect(self._show_sample_error)
+        self._worker.alert_settings_loaded.connect(self._alerts.set_settings)
+        self._worker.alert_settings_saved.connect(self._alerts.settings_result)
+        self._worker.alert_history_loaded.connect(self._alerts.show_history)
+        self._worker.alerts_created.connect(self._show_alerts)
+        self._worker.alerts_created.connect(self._alerts.new_alerts)
+        self._alerts.settings_requested.connect(self._worker.save_alert_settings)
+        self._alerts.history_requested.connect(self._worker.load_alert_history)
         self._thread.start()
         self._request_sample()
         self._timer.start()
@@ -242,6 +264,17 @@ class MonitorWindow(QMainWindow):
     @Slot(str)
     def _show_storage_error(self, message: str) -> None:
         self.statusBar().showMessage(message, 8000)
+
+    @Slot(object)
+    def _show_alerts(self, alerts: list[Alert]) -> None:
+        latest = alerts[0]
+        resource = RESOURCE_LABELS[latest.resource]
+        extra = f" · ещё {len(alerts) - 1}" if len(alerts) > 1 else ""
+        self._alert_notice.setText(
+            f"Порог превышен · {resource} {_percent(latest.measured)} > {latest.threshold} %{extra}"
+        )
+        self._alert_notice.show()
+        self._alert_timer.start(10_000)
 
     @Slot()
     def _request_sample(self) -> None:
