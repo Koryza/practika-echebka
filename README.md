@@ -50,3 +50,11 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 - Диспетчер процессов запускает исполняемые файлы. Завершение доступно только для дочерних процессов, запущенных из текущего экземпляра System Monitor.
 
 [Архитектура, схема базы и алгоритмы](docs/design.md) · [Протокол испытаний](docs/test-results.pdf) · [Результаты оптимизации и регрессии](docs/optimization-results.pdf) · [Заметки по отладке](docs/debugging.md)
+
+## Документы для сдачи
+
+- [Техническое задание](docs/technical-specification.pdf)
+- [Описание программы](docs/program-description.pdf)
+- [Программа и методика испытаний](docs/testing-methodology.pdf)
+- [Руководство оператора](docs/operator-manual.pdf)
+- [Отчёт о прохождении учебной практики](docs/practice-report.pdf)

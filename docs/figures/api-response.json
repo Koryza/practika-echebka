@@ -1,0 +1,23 @@
+{
+  "computerName": "System-Monitor-Demo",
+  "cpu": {
+    "logicalCores": 8,
+    "model": "Apple M2",
+    "physicalCores": 8,
+    "usagePercent": 11.5
+  },
+  "disk": {
+    "freeBytes": 58166755328,
+    "name": "/System/Volumes/Data",
+    "totalBytes": 245107195904,
+    "usagePercent": 72.6,
+    "usedBytes": 154245976064
+  },
+  "memory": {
+    "availableBytes": 1359314944,
+    "totalBytes": 8589934592,
+    "usagePercent": 84.2,
+    "usedBytes": 7230619648
+  },
+  "timestamp": "2026-11-25T10:38:11.822Z"
+}
