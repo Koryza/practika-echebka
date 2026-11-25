@@ -1,3 +1,4 @@
+import errno
 from pathlib import Path
 
 from PySide6.QtCore import QPropertyAnimation, QSignalBlocker, QThread, QTimer, Signal, Slot
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from .files_panel import FilesPanel
 from .history_panel import HistoryPanel
+from .http_api import EMULATOR_HOST, LocalApi
 from .metric_chart import MetricChart
 from .monitor import DiskUsage, SystemSnapshot
 from .process_panel import ProcessPanel
@@ -122,6 +124,8 @@ class MonitorWindow(QMainWindow):
         self._disks: dict[str, DiskUsage] = {}
         self._sampling = False
         self._has_sample = False
+        self._snapshot: SystemSnapshot | None = None
+        self._api = LocalApi()
 
         dashboard = QWidget()
         dashboard.setObjectName("dashboard")
@@ -221,6 +225,19 @@ class MonitorWindow(QMainWindow):
         if self._timer.interval() != interval:
             self._timer.setInterval(interval)
         self.recording_configured.emit(settings)
+        try:
+            self._api.start(settings.api_port)
+        except (OSError, RuntimeError) as error:
+            if isinstance(error, OSError) and error.errno == errno.EADDRINUSE:
+                message = f"Порт {settings.api_port} занят"
+            else:
+                message = f"Не удалось открыть порт {settings.api_port}"
+            if self._api.port is not None:
+                message += f" · API продолжает работать на порту {self._api.port}"
+            self._history.set_api_status(message)
+            self.statusBar().showMessage(message, 8000)
+        else:
+            self._history.set_api_status(f"API для эмулятора · http://{EMULATOR_HOST}:{self._api.port}")
 
     @Slot(str)
     def _show_storage_error(self, message: str) -> None:
@@ -236,6 +253,7 @@ class MonitorWindow(QMainWindow):
     def _show_sample(self, snapshot: SystemSnapshot) -> None:
         self._sampling = False
         self._has_sample = True
+        self._snapshot = snapshot
         time = snapshot.timestamp.astimezone().strftime("%H:%M:%S")
         self._status.setText(f"Последний замер в {time}")
         cpu = snapshot.cpu
@@ -262,6 +280,8 @@ class MonitorWindow(QMainWindow):
     @Slot()
     def _show_sample_error(self) -> None:
         self._sampling = False
+        self._snapshot = None
+        self._api.status.publish(None, None)
         message = "Замер не получен"
         if self._has_sample:
             message += " · Показаны последние доступные данные"
@@ -288,6 +308,7 @@ class MonitorWindow(QMainWindow):
     @Slot()
     def _show_selected_disk(self) -> None:
         disk = self._disks.get(self._disk_selector.currentData())
+        self._api.status.publish(self._snapshot, disk)
         percent = disk.usage_percent if disk is not None else None
         self._disk_value.setText(_percent(percent))
         if disk is None or percent is None:
@@ -317,6 +338,7 @@ class MonitorWindow(QMainWindow):
 
     @Slot()
     def stop_workers(self) -> None:
+        self._api.stop()
         self.stop_sampling()
         self._files.stop()
         self._processes.stop()

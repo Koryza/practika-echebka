@@ -193,6 +193,11 @@ class HistoryPanel(QWidget):
         self._save = QPushButton("Сохранить настройки")
         self._save.clicked.connect(self._save_settings)
         settings_grid.addWidget(self._save, 1, 3)
+        self._api_status = QLabel("HTTP API запускается…")
+        self._api_status.setObjectName("status")
+        self._api_status.setWordWrap(True)
+        self._api_status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        settings_grid.addWidget(self._api_status, 2, 0, 1, 4)
         layout.addLayout(settings_grid)
 
         folder_row = QHBoxLayout()
@@ -278,6 +283,9 @@ class HistoryPanel(QWidget):
     def _save_settings(self) -> None:
         settings = Settings(**{key: field.value() for key, field in self._fields.items()})
         self._send(HistoryRequest("save", self._kind.currentData(), settings=settings))
+
+    def set_api_status(self, message: str) -> None:
+        self._api_status.setText(message)
 
     def _set_settings(self, settings: Settings) -> None:
         for key, field in self._fields.items():

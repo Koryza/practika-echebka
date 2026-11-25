@@ -76,11 +76,11 @@ erDiagram
 
 ## Обмен между Mac и Android
 
-API на Mac слушает `127.0.0.1` на выбранном порту. В эмуляторе адрес Mac — `10.0.2.2`. [Сетевые адреса Android Emulator](https://developer.android.com/studio/run/emulator-networking-address)
+API на Mac слушает `127.0.0.1` на выбранном порту. В эмуляторе адрес Mac — `10.0.2.2`. Состояние API и действующий порт видны во вкладке «История и настройки». Если новый порт занят, API продолжает работать на предыдущем доступном порту. [Сетевые адреса Android Emulator](https://developer.android.com/studio/run/emulator-networking-address)
 
 | Метод | Назначение | Ответ |
 |---|---|---|
-| `GET /api/status` | Получить последний замер | `200` с JSON или `503`, пока первый замер готовится |
+| `GET /api/status` | Получить последний замер | `200` с JSON или `503`, пока свежий замер недоступен |
 | `GET /api/health` | Проверить, отвечает ли сервер | `200` и `{"status":"ok"}` |
 
 Ответ `/api/status` содержит `computerName`, `timestamp` в ISO 8601 UTC и объекты `cpu`, `memory`, `disk`. В `cpu` передаются `model`, `logicalCores`, `physicalCores` и `usagePercent`. В `memory` и `disk` передаются `totalBytes`, `usedBytes` и `usagePercent`, а также `availableBytes` для памяти и `name` и `freeBytes` для диска. API отдаёт данные выбранного в настольном окне накопителя. Недоступные значения передаются как `null`. Если накопителей нет, `disk` равен `null`. Android показывает «Недоступно» для отсутствующих показателей и состояние связи отдельно от метрик.
