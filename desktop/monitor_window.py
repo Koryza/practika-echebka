@@ -1,4 +1,6 @@
-from PySide6.QtCore import QObject, QPropertyAnimation, QSignalBlocker, QThread, QTimer, Signal, Slot
+from pathlib import Path
+
+from PySide6.QtCore import QPropertyAnimation, QSignalBlocker, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -12,11 +14,13 @@ from PySide6.QtWidgets import (
 )
 
 from .files_panel import FilesPanel
+from .history_panel import HistoryPanel
 from .metric_chart import MetricChart
-from .monitor import DiskUsage, SystemMonitor, SystemSnapshot
+from .monitor import DiskUsage, SystemSnapshot
 from .process_panel import ProcessPanel
 
-UPDATE_INTERVAL_MS = 2000
+from .sampling import SampleWorker
+from .settings import Settings
 
 WINDOW_STYLE = """
 QMainWindow, QWidget#dashboard, QTabWidget, QDialog { background: #101721; }
@@ -32,10 +36,19 @@ QPushButton {
     padding: 5px 8px;
 }
 QPushButton:hover { background: #334966; }
-QLineEdit { background: #182230; color: #edf2fa; border: 1px solid #526783; padding: 4px; }
+QLineEdit, QDateEdit, QSpinBox { background: #182230; color: #edf2fa; border: 1px solid #526783; padding: 4px; }
 QPushButton:focus { border-color: #67dcad; }
+
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #7085a0; border-radius: 3px; }
+QCheckBox::indicator:checked { background: #67dcad; border-color: #67dcad; }
+QCheckBox::indicator:disabled { border-color: #3e5069; }
+QCheckBox::indicator:checked:disabled { background: #3e5069; }
+QDateEdit:disabled { color: #8795a8; border-color: #29364a; }
 QPushButton:disabled { background: #182230; color: #8795a8; }
 QTableWidget { background: #182230; gridline-color: #29364a; selection-background-color: #334966; }
+QCalendarWidget QWidget { background: #182230; }
+QCalendarWidget QAbstractItemView { selection-background-color: #334966; }
+QCalendarWidget QToolButton { color: #edf2fa; }
 QHeaderView::section { background: #263448; color: #edf2fa; padding: 5px; border: 0; }
 QLabel#heading { font-size: 28px; font-weight: 700; }
 QLabel#cardTitle { font-size: 15px; font-weight: 650; }
@@ -96,30 +109,11 @@ def _card() -> tuple[QFrame, QVBoxLayout]:
     return frame, layout
 
 
-class SampleWorker(QObject):
-    sampled = Signal(object)
-    failed = Signal()
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._monitor: SystemMonitor | None = None
-
-    @Slot()
-    def sample(self) -> None:
-        try:
-            if self._monitor is None:
-                self._monitor = SystemMonitor()
-            snapshot = self._monitor.sample()
-        except OSError:
-            self.failed.emit()
-        else:
-            self.sampled.emit(snapshot)
-
-
 class MonitorWindow(QMainWindow):
     sample_requested = Signal()
+    recording_configured = Signal(object)
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle("System Monitor")
         self.setMinimumSize(720, 560)
@@ -134,10 +128,16 @@ class MonitorWindow(QMainWindow):
         tabs = QTabWidget()
         self.setCentralWidget(tabs)
         tabs.addTab(dashboard, "Мониторинг")
-        self._files = FilesPanel()
+        self._files = FilesPanel(db_path)
         tabs.addTab(self._files, "Файлы")
-        self._processes = ProcessPanel()
+        self._processes = ProcessPanel(db_path)
         tabs.addTab(self._processes, "Процессы")
+        self._history = HistoryPanel(db_path)
+        tabs.addTab(self._history, "История и настройки")
+        self._files.workspace_changed.connect(self._history.set_workspace)
+        self._files.workspace_selected.connect(self._history.workspace_result)
+        self._history.workspace_requested.connect(self._files.set_workspace_root)
+        self._history.settings_saved.connect(self._apply_settings)
         layout = QVBoxLayout(dashboard)
         layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(14)
@@ -198,11 +198,15 @@ class MonitorWindow(QMainWindow):
         self._disk_animation.setDuration(350)
 
         self._timer = QTimer(self)
-        self._timer.setInterval(UPDATE_INTERVAL_MS)
+        self._timer.setInterval(Settings().refresh_seconds * 1000)
         self._timer.timeout.connect(self._request_sample)
         self._thread = QThread(self)
-        self._worker = SampleWorker()
+        self._worker = SampleWorker(db_path)
         self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.initialize)
+        self._worker.settings_loaded.connect(self._apply_settings)
+        self._worker.storage_error.connect(self._show_storage_error)
+        self.recording_configured.connect(self._worker.configure)
         self._thread.finished.connect(self._worker.deleteLater)
         self.sample_requested.connect(self._worker.sample)
         self._worker.sampled.connect(self._show_sample)
@@ -210,6 +214,17 @@ class MonitorWindow(QMainWindow):
         self._thread.start()
         self._request_sample()
         self._timer.start()
+
+    @Slot(object)
+    def _apply_settings(self, settings: Settings) -> None:
+        interval = settings.refresh_seconds * 1000
+        if self._timer.interval() != interval:
+            self._timer.setInterval(interval)
+        self.recording_configured.emit(settings)
+
+    @Slot(str)
+    def _show_storage_error(self, message: str) -> None:
+        self.statusBar().showMessage(message, 8000)
 
     @Slot()
     def _request_sample(self) -> None:
@@ -305,6 +320,7 @@ class MonitorWindow(QMainWindow):
         self.stop_sampling()
         self._files.stop()
         self._processes.stop()
+        self._history.stop()
 
     def closeEvent(self, event) -> None:
         self.stop_workers()

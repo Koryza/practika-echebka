@@ -161,12 +161,16 @@ def _date(timestamp: float | None) -> str:
 
 class FilesPanel(QWidget):
     requested = Signal(object)
+    workspace_changed = Signal(str)
+    workspace_selected = Signal(str, str)
 
     def __init__(self, db_path: Path | None = None) -> None:
         super().__init__()
         self.setObjectName("dashboard")
         self._view = FileView(None, (), [])
         self._busy = False
+        self._active_request = None
+        self._pending_root = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 18, 24, 16)
@@ -285,6 +289,7 @@ class FilesPanel(QWidget):
     def _update_view(self, view: FileView | None, message: str) -> None:
         self._busy = False
         self._status.setText(message)
+        previous_root = self._view.root
         if view is not None:
             self._table.clearSelection()
             self._table.setRowCount(0)
@@ -298,10 +303,20 @@ class FilesPanel(QWidget):
                 for column, value in enumerate(values):
                     self._table.setItem(row, column, QTableWidgetItem(value))
         self._selection_changed()
+        if self._view.root != previous_root:
+            self.workspace_changed.emit(str(self._view.root or ""))
+        if self._active_request is not None and self._active_request.operation == "root":
+            self.workspace_selected.emit(self._active_request.name, message)
+        self._active_request = None
+        if self._pending_root is not None:
+            path = self._pending_root
+            self._pending_root = None
+            self.set_workspace_root(path)
 
     def _request(self, request: FileRequest) -> None:
         if not self._busy:
             self._busy = True
+            self._active_request = request
             self._status.setText("Выполняется…")
             self._sync_buttons()
             self.requested.emit(request)
@@ -309,7 +324,14 @@ class FilesPanel(QWidget):
     def _choose_root(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Рабочая папка", str(self._view.root or Path.home()))
         if chosen:
-            self._request(FileRequest("root", chosen))
+            self.set_workspace_root(chosen)
+
+    @Slot(str)
+    def set_workspace_root(self, directory: str) -> None:
+        if self._busy:
+            self._pending_root = directory
+        else:
+            self._request(FileRequest("root", directory))
 
     @Slot(int, int)
     def _open_entry(self, row: int, column: int) -> None:
