@@ -41,7 +41,7 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Для статической проверки Android вызовите `./gradlew lintDebug` из каталога `mobile`.
+Для модульных тестов и статической проверки Android выполните `./gradlew testDebugUnitTest lintDebug` из каталога `mobile`.
 
 ## Ограничения
 
@@ -49,4 +49,4 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 - Объекты файлового менеджера должны находиться в выбранной рабочей папке. Между томами используйте копирование.
 - Диспетчер процессов запускает исполняемые файлы. Завершение доступно только для дочерних процессов, запущенных из текущего экземпляра System Monitor.
 
-[Архитектура, схема базы и алгоритмы](docs/design.md) · [Заметки по отладке](docs/debugging.md)
+[Архитектура, схема базы и алгоритмы](docs/design.md) · [Протокол испытаний](docs/test-results.pdf) · [Заметки по отладке](docs/debugging.md)
