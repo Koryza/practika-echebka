@@ -19,7 +19,10 @@ internal data class ConnectionSettings(
             } catch (_: URISyntaxException) {
                 null
             }
-            require(address?.host != null && address.rawUserInfo == null && address.port == -1) {
+            require(
+                address?.host != null && address.rawUserInfo == null && address.port == -1 &&
+                    address.rawPath.isNullOrEmpty() && address.rawQuery == null && address.rawFragment == null
+            ) {
                 "Введите IP-адрес или имя компьютера без порта и пути."
             }
             val port = portText.trim().toIntOrNull()
