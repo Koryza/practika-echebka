@@ -9,7 +9,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("System Monitor")
     window = MonitorWindow()
-    app.aboutToQuit.connect(window.stop_sampling)
+    app.aboutToQuit.connect(window.stop_workers)
     window.show()
     return app.exec()
 

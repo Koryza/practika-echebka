@@ -6,18 +6,36 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QProgressBar,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from .files_panel import FilesPanel
 from .metric_chart import MetricChart
 from .monitor import DiskUsage, SystemMonitor, SystemSnapshot
 
 UPDATE_INTERVAL_MS = 2000
 
 WINDOW_STYLE = """
-QWidget#dashboard { background: #101721; }
+QWidget#dashboard, QTabWidget, QDialog { background: #101721; }
 QWidget { color: #edf2fa; font-size: 13px; }
+QTabWidget::pane { border: 0; background: #101721; }
+QTabWidget::tab-bar { alignment: left; }
+QTabBar::tab { background: #182230; color: #aab9ce; padding: 9px 18px; }
+QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #67dcad; }
+QPushButton {
+    background: #263448;
+    border: 1px solid #3e5069;
+    border-radius: 5px;
+    padding: 5px 8px;
+}
+QPushButton:hover { background: #334966; }
+QLineEdit { background: #182230; color: #edf2fa; border: 1px solid #526783; padding: 4px; }
+QPushButton:focus { border-color: #67dcad; }
+QPushButton:disabled { background: #182230; color: #8795a8; }
+QTableWidget { background: #182230; gridline-color: #29364a; selection-background-color: #334966; }
+QHeaderView::section { background: #263448; color: #edf2fa; padding: 5px; border: 0; }
 QLabel#heading { font-size: 28px; font-weight: 700; }
 QLabel#cardTitle { font-size: 15px; font-weight: 650; }
 QLabel#metric { font-size: 28px; font-weight: 700; }
@@ -112,7 +130,11 @@ class MonitorWindow(QMainWindow):
 
         dashboard = QWidget()
         dashboard.setObjectName("dashboard")
-        self.setCentralWidget(dashboard)
+        tabs = QTabWidget()
+        self.setCentralWidget(tabs)
+        tabs.addTab(dashboard, "Мониторинг")
+        self._files = FilesPanel()
+        tabs.addTab(self._files, "Файлы")
         layout = QVBoxLayout(dashboard)
         layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(14)
@@ -275,6 +297,11 @@ class MonitorWindow(QMainWindow):
         self._thread.quit()
         self._thread.wait()
 
-    def closeEvent(self, event) -> None:
+    @Slot()
+    def stop_workers(self) -> None:
         self.stop_sampling()
+        self._files.stop()
+
+    def closeEvent(self, event) -> None:
+        self.stop_workers()
         super().closeEvent(event)
