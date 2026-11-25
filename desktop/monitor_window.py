@@ -14,11 +14,12 @@ from PySide6.QtWidgets import (
 from .files_panel import FilesPanel
 from .metric_chart import MetricChart
 from .monitor import DiskUsage, SystemMonitor, SystemSnapshot
+from .process_panel import ProcessPanel
 
 UPDATE_INTERVAL_MS = 2000
 
 WINDOW_STYLE = """
-QWidget#dashboard, QTabWidget, QDialog { background: #101721; }
+QMainWindow, QWidget#dashboard, QTabWidget, QDialog { background: #101721; }
 QWidget { color: #edf2fa; font-size: 13px; }
 QTabWidget::pane { border: 0; background: #101721; }
 QTabWidget::tab-bar { alignment: left; }
@@ -135,6 +136,8 @@ class MonitorWindow(QMainWindow):
         tabs.addTab(dashboard, "Мониторинг")
         self._files = FilesPanel()
         tabs.addTab(self._files, "Файлы")
+        self._processes = ProcessPanel()
+        tabs.addTab(self._processes, "Процессы")
         layout = QVBoxLayout(dashboard)
         layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(14)
@@ -301,6 +304,7 @@ class MonitorWindow(QMainWindow):
     def stop_workers(self) -> None:
         self.stop_sampling()
         self._files.stop()
+        self._processes.stop()
 
     def closeEvent(self, event) -> None:
         self.stop_workers()
