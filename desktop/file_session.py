@@ -49,15 +49,15 @@ class FileSession:
                 self._storage = Storage(self._db_path)
             if request.operation in OPERATIONS:
                 message = self._mutate_and_log(request)
+                view = self._view()
             else:
-                self._navigate(request)
-            view = self._view()
+                view = self._navigate(request)
         except (OSError, WorkspaceError, DatabaseError) as error:
             detail = explain_file_error(error)
             message = f"{message} · {detail}" if message else detail
         return view, message
 
-    def _navigate(self, request: FileRequest) -> None:
+    def _navigate(self, request: FileRequest) -> FileView:
         if request.operation in {"restore", "root"}:
             root = (
                 self._storage.setting("workspace_root")
@@ -65,21 +65,24 @@ class FileSession:
                 else request.name
             )
             if not root:
-                return
+                return self._view()
             workspace = WorkspaceFiles(Path(root))
-            workspace.list_directory(())
+            entries = workspace.list_directory(())
             if request.operation == "root":
                 self._storage.save_setting("workspace_root", str(workspace.root))
             self._workspace = workspace
             self._directory = ()
-        elif request.operation in {"enter", "up"}:
+            return FileView(workspace.root, (), entries)
+        if request.operation in {"enter", "up"}:
             target = (
                 (*self._directory, request.name)
                 if request.operation == "enter"
                 else self._directory[:-1]
             )
-            self._workspace.list_directory(target)
+            entries = self._workspace.list_directory(target)
             self._directory = target
+            return FileView(self._workspace.root, target, entries)
+        return self._view()
 
     def _view(self) -> FileView:
         if self._workspace is None:
