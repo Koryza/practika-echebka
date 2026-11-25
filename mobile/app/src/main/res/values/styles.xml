@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">System Monitor</string>
+
+    <style name="Theme.SystemMonitor" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#101721</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">#67DCAD</item>
+    </style>
+</resources>
