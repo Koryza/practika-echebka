@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .confirmation import confirm_action
 from .settings import SETTINGS_LIMITS, Settings
 from .storage import HistoryPage, Storage
 
@@ -295,14 +295,7 @@ class HistoryPanel(QWidget):
     def _confirm_clear(self) -> None:
         metrics = self._kind.currentData() == "metrics"
         target = "всю историю замеров" if metrics else "весь журнал событий"
-        dialog = QMessageBox(QMessageBox.Icon.Warning, "Подтверждение очистки", "", parent=self)
-        dialog.setText(f"Очистить {target}?")
-        clear = dialog.addButton("Очистить", QMessageBox.ButtonRole.DestructiveRole)
-        cancel = dialog.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
-        dialog.setDefaultButton(cancel)
-        dialog.setEscapeButton(cancel)
-        dialog.exec()
-        if dialog.clickedButton() == clear:
+        if confirm_action(self, "Подтверждение очистки", f"Очистить {target}?", "Очистить"):
             self._query("clear")
 
     @Slot(object, object)

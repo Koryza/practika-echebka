@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QLabel,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .confirmation import confirm_action
 from .storage import Storage
 from .workspace_files import FileEntry, RelativePath, WorkspaceError, WorkspaceFiles, explain_file_error
 
@@ -368,16 +368,8 @@ class FilesPanel(QWidget):
             if not target:
                 return
         elif operation == "delete":
-            message = QMessageBox(QMessageBox.Icon.Warning, "Удаление", "", parent=self)
-            message.setTextFormat(Qt.TextFormat.PlainText)
             suffix = " Папка будет удалена вместе с содержимым." if item.kind == "directory" else ""
-            message.setText(f"Удалить «{name}»?{suffix}")
-            delete = message.addButton("Удалить", QMessageBox.ButtonRole.DestructiveRole)
-            cancel = message.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
-            message.setDefaultButton(cancel)
-            message.setEscapeButton(cancel)
-            message.exec()
-            if message.clickedButton() != delete:
+            if not confirm_action(self, "Удаление", f"Удалить «{name}»?{suffix}", "Удалить"):
                 return
         self._request(FileRequest(operation, name, target))
 

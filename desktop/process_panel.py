@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .confirmation import confirm_action
 from .processes import ProcessEntry, ProcessError, ProcessManager, explain_process_error
 from .storage import Storage
 
@@ -218,15 +219,8 @@ class ProcessPanel(QWidget):
         entry = self._selected()
         if entry is None or not entry.owned:
             return
-        dialog = QMessageBox(QMessageBox.Icon.Question, "Завершение процесса", "", parent=self)
-        dialog.setTextFormat(Qt.TextFormat.PlainText)
-        dialog.setText(f"Завершить процесс «{entry.name or 'Без названия'}» (PID {entry.pid})?")
-        terminate = dialog.addButton("Завершить", QMessageBox.ButtonRole.DestructiveRole)
-        cancel = dialog.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
-        dialog.setDefaultButton(cancel)
-        dialog.setEscapeButton(cancel)
-        dialog.exec()
-        if dialog.clickedButton() == terminate:
+        text = f"Завершить процесс «{entry.name or 'Без названия'}» (PID {entry.pid})?"
+        if confirm_action(self, "Завершение процесса", text, "Завершить", icon=QMessageBox.Icon.Question):
             self._request(ProcessRequest("terminate", pid=entry.pid))
 
     @Slot()
