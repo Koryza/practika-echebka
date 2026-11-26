@@ -82,16 +82,4 @@ QFrame[role="card"] {
 }
 QProgressBar { background: #e6eeed; border: 0; border-radius: 4px; }
 QProgressBar::chunk { background: #4a8c81; border-radius: 4px; }
-QFrame#alertCard {
-    background: #fffcf6;
-    border: 1px solid #d7bb85;
-    border-radius: 13px;
-}
-QLabel#alertTitle { color: #573c1d; font-size: 16px; font-weight: 700; }
-QLabel#alertReading { color: #5e4b31; }
-QPushButton#alertHistory { background: #f6e9d1; border-color: #e4cea6; color: #553b1c; }
-QPushButton#alertHistory:hover { background: #f0dfbd; }
-QPushButton#alertClose { background: transparent; border-color: transparent; font-size: 18px; padding: 0 6px; }
-QPushButton#alertClose:hover { background: #f6e9d1; }
-QPushButton#alertClose:focus, QPushButton#alertHistory:focus { border-color: #967440; }
 """

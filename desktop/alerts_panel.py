@@ -19,6 +19,7 @@ from .storage import HistoryPage
 
 
 class AlertsPanel(QWidget):
+    test_notification_requested = Signal()
     settings_requested = Signal(object)
     history_requested = Signal(int, object)
 
@@ -75,6 +76,16 @@ class AlertsPanel(QWidget):
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
+        test = QPushButton("Проверить уведомления macOS")
+        test.clicked.connect(self.test_notification_requested)
+        self._notification_status = QLabel()
+        self._notification_status.setObjectName("status")
+        self._notification_status.setWordWrap(True)
+        notification_row = QHBoxLayout()
+        notification_row.addWidget(test)
+        notification_row.addWidget(self._notification_status, 1)
+        layout.addLayout(notification_row)
+
         self._table = QTableWidget(0, 5)
         self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(["Время", "Ресурс", "Том", "Замер", "Порог"])
@@ -102,6 +113,10 @@ class AlertsPanel(QWidget):
         navigation.addWidget(self._history_status, 1)
         layout.addLayout(navigation)
         self._sync_buttons()
+
+    @Slot(str)
+    def set_notification_status(self, message: str) -> None:
+        self._notification_status.setText(message)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

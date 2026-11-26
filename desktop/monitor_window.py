@@ -14,11 +14,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .alert_popup import AlertPopup
 from .alerts_panel import AlertsPanel
 from .files_panel import FilesPanel
 from .history_panel import HistoryPanel
 from .http_api import EMULATOR_HOST, LocalApi
+from .mac_notifications import MacNotifications
 from .metric_chart import MetricChart
 from .monitor import DiskUsage, SystemSnapshot
 from .process_panel import ProcessPanel
@@ -82,8 +82,9 @@ class MonitorWindow(QMainWindow):
         tabs.addTab(self._history, "История и настройки")
         self._alerts = AlertsPanel()
         tabs.addTab(self._alerts, "Уведомления")
-        self._alert_popup = AlertPopup(self)
-        self._alert_popup.history_requested.connect(lambda: tabs.setCurrentWidget(self._alerts))
+        self._notifier = MacNotifications(self)
+        self._alerts.test_notification_requested.connect(self._notifier.send_test)
+        self._notifier.status_changed.connect(self._alerts.set_notification_status)
         self._files.workspace_changed.connect(self._history.set_workspace)
         self._files.workspace_selected.connect(self._history.workspace_result)
         self._history.workspace_requested.connect(self._files.set_workspace_root)
@@ -171,7 +172,7 @@ class MonitorWindow(QMainWindow):
         self._worker.alert_settings_loaded.connect(self._alerts.set_settings)
         self._worker.alert_settings_saved.connect(self._alerts.settings_result)
         self._worker.alert_history_loaded.connect(self._alerts.show_history)
-        self._worker.alerts_created.connect(self._alert_popup.show_alerts)
+        self._worker.alerts_created.connect(self._notifier.send_alerts)
         self._worker.alerts_created.connect(self._alerts.new_alerts)
         self._alerts.settings_requested.connect(self._worker.save_alert_settings)
         self._alerts.history_requested.connect(self._worker.load_alert_history)
@@ -303,25 +304,12 @@ class MonitorWindow(QMainWindow):
 
     @Slot()
     def stop_workers(self) -> None:
+        self._notifier.stop()
         self._api.stop()
         self.stop_sampling()
         self._files.stop()
         self._processes.stop()
         self._history.stop()
-
-    def moveEvent(self, event) -> None:
-        super().moveEvent(event)
-        if self._alert_popup.isVisible():
-            self._alert_popup.reposition()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        if self._alert_popup.isVisible():
-            self._alert_popup.reposition()
-
-    def hideEvent(self, event) -> None:
-        self._alert_popup.dismiss()
-        super().hideEvent(event)
 
     def closeEvent(self, event) -> None:
         self.stop_workers()
