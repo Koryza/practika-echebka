@@ -156,6 +156,7 @@ class HistoryPanel(QWidget):
         layout.addLayout(controls)
 
         self._table = QTableWidget()
+        self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().hide()
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)

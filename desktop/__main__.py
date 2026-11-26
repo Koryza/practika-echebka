@@ -1,5 +1,6 @@
 import sys
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from .monitor_window import MonitorWindow
@@ -8,6 +9,8 @@ from .monitor_window import MonitorWindow
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("System Monitor")
+    app.styleHints().setColorScheme(Qt.ColorScheme.Light)
+    app.setStyle("Fusion")
     window = MonitorWindow()
     app.aboutToQuit.connect(window.stop_workers)
     window.show()

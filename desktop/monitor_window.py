@@ -1,7 +1,7 @@
 import errno
 from pathlib import Path
 
-from PySide6.QtCore import QPropertyAnimation, QSignalBlocker, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QPropertyAnimation, QSignalBlocker, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -9,13 +9,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QProgressBar,
-    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from .alerts import RESOURCE_LABELS, Alert
+from .alert_popup import AlertPopup
 from .alerts_panel import AlertsPanel
 from .files_panel import FilesPanel
 from .history_panel import HistoryPanel
@@ -23,71 +22,9 @@ from .http_api import EMULATOR_HOST, LocalApi
 from .metric_chart import MetricChart
 from .monitor import DiskUsage, SystemSnapshot
 from .process_panel import ProcessPanel
-
 from .sampling import SampleWorker
 from .settings import Settings
-
-WINDOW_STYLE = """
-QMainWindow, QWidget#dashboard, QTabWidget, QDialog { background: #101721; }
-QWidget { color: #edf2fa; font-size: 13px; }
-QTabWidget::pane { border: 0; background: #101721; }
-QTabWidget::tab-bar { alignment: left; }
-QTabBar::tab { background: #182230; color: #aab9ce; padding: 9px 18px; }
-QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #67dcad; }
-QPushButton {
-    background: #263448;
-    border: 1px solid #3e5069;
-    border-radius: 5px;
-    padding: 5px 8px;
-}
-QPushButton:hover { background: #334966; }
-QLineEdit, QDateEdit, QSpinBox { background: #182230; color: #edf2fa; border: 1px solid #526783; padding: 4px; }
-QPushButton:focus { border-color: #67dcad; }
-
-QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #7085a0; border-radius: 3px; }
-QCheckBox::indicator:checked { background: #67dcad; border-color: #67dcad; }
-QCheckBox::indicator:disabled { border-color: #3e5069; }
-QCheckBox::indicator:checked:disabled { background: #3e5069; }
-QDateEdit:disabled { color: #8795a8; border-color: #29364a; }
-QPushButton#alertNotice { background: #45351b; color: #ffe2a3; border-color: #c49138; }
-QPushButton#alertNotice:hover { background: #594322; }
-QPushButton:disabled { background: #182230; color: #8795a8; }
-QTableWidget { background: #182230; gridline-color: #29364a; selection-background-color: #334966; }
-QCalendarWidget QWidget { background: #182230; }
-QCalendarWidget QAbstractItemView { selection-background-color: #334966; }
-QCalendarWidget QToolButton { color: #edf2fa; }
-QHeaderView::section { background: #263448; color: #edf2fa; padding: 5px; border: 0; }
-QLabel#heading { font-size: 28px; font-weight: 700; }
-QLabel#cardTitle { font-size: 15px; font-weight: 650; }
-QLabel#metric { font-size: 28px; font-weight: 700; }
-QLabel[role="details"], QLabel#status { color: #aab9ce; }
-QFrame[role="card"] {
-    background: #182230;
-    border: 1px solid #29364a;
-    border-radius: 12px;
-}
-QComboBox {
-    background: #101721;
-    color: #edf2fa;
-    border: 1px solid #526783;
-    border-radius: 6px;
-    padding: 5px 8px;
-    min-height: 22px;
-}
-QComboBox:focus { border-color: #67dcad; }
-QComboBox QAbstractItemView {
-    background: #182230;
-    color: #edf2fa;
-    selection-background-color: #334966;
-    selection-color: #ffffff;
-}
-QProgressBar {
-    background: #2a3546;
-    border: 0;
-    border-radius: 5px;
-}
-QProgressBar::chunk { background: #67dcad; border-radius: 5px; }
-"""
+from .theme import CPU_LINE, MEMORY_LINE, WINDOW_STYLE
 
 
 def _percent(value: float | None) -> str:
@@ -145,24 +82,23 @@ class MonitorWindow(QMainWindow):
         tabs.addTab(self._history, "История и настройки")
         self._alerts = AlertsPanel()
         tabs.addTab(self._alerts, "Уведомления")
-        self._alert_notice = QPushButton()
-        self._alert_notice.setObjectName("alertNotice")
-        self._alert_notice.clicked.connect(lambda: tabs.setCurrentWidget(self._alerts))
-        self.statusBar().addPermanentWidget(self._alert_notice)
-        self._alert_notice.hide()
-        self._alert_timer = QTimer(self)
-        self._alert_timer.setSingleShot(True)
-        self._alert_timer.timeout.connect(self._alert_notice.hide)
+        self._alert_popup = AlertPopup(self)
+        self._alert_popup.history_requested.connect(lambda: tabs.setCurrentWidget(self._alerts))
         self._files.workspace_changed.connect(self._history.set_workspace)
         self._files.workspace_selected.connect(self._history.workspace_result)
         self._history.workspace_requested.connect(self._files.set_workspace_root)
         self._history.settings_saved.connect(self._apply_settings)
         layout = QVBoxLayout(dashboard)
-        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setContentsMargins(24, 17, 24, 18)
         layout.setSpacing(14)
-        layout.addWidget(_label("Мониторинг Mac", "heading"))
-        self._status = _label("Получаем первый замер…", "status")
-        layout.addWidget(self._status)
+        header = QHBoxLayout()
+        header.addWidget(_label("Мониторинг Mac", "heading"), 1)
+        self._status = _label("Получаем первый замер…", "status", details=True)
+        self._status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._status.setMinimumWidth(200)
+        self._status.setMaximumWidth(280)
+        header.addWidget(self._status)
+        layout.addLayout(header)
 
         metric_row = QHBoxLayout()
         metric_row.setSpacing(14)
@@ -170,7 +106,7 @@ class MonitorWindow(QMainWindow):
         cpu_layout.addWidget(_label("Загрузка процессора", "cardTitle"))
         self._cpu_value = _label("—", "metric")
         self._cpu_details = _label("Ожидание данных", details=True)
-        self._cpu_chart = MetricChart("#7ea8ff", "График загрузки процессора в процентах")
+        self._cpu_chart = MetricChart(CPU_LINE, "График загрузки процессора в процентах")
         cpu_layout.addWidget(self._cpu_value)
         cpu_layout.addWidget(self._cpu_details)
         cpu_layout.addWidget(self._cpu_chart, 1)
@@ -180,7 +116,7 @@ class MonitorWindow(QMainWindow):
         memory_layout.addWidget(_label("Использование памяти", "cardTitle"))
         self._memory_value = _label("—", "metric")
         self._memory_details = _label("Ожидание данных", details=True)
-        self._memory_chart = MetricChart("#dfabff", "График использования памяти в процентах")
+        self._memory_chart = MetricChart(MEMORY_LINE, "График использования памяти в процентах")
         memory_layout.addWidget(self._memory_value)
         memory_layout.addWidget(self._memory_details)
         memory_layout.addWidget(self._memory_chart, 1)
@@ -188,18 +124,20 @@ class MonitorWindow(QMainWindow):
         layout.addLayout(metric_row, 1)
 
         disk_card, disk_layout = _card()
-        disk_layout.addWidget(_label("Накопители", "cardTitle"))
         self._disk_selector = QComboBox()
         self._disk_selector.setAccessibleName("Выбор накопителя")
-        self._disk_selector.setMinimumContentsLength(18)
+        self._disk_selector.setMinimumContentsLength(24)
+        self._disk_selector.setMaximumWidth(370)
         self._disk_selector.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         self._disk_selector.setEnabled(False)
         self._disk_selector.currentIndexChanged.connect(self._show_selected_disk)
-        self._disk_value = _label("—", "metric")
+        self._disk_value = _label("—", "diskMetric")
         disk_header = QHBoxLayout()
-        disk_header.addWidget(self._disk_selector, 1)
+        disk_header.addWidget(_label("Накопители", "cardTitle"))
+        disk_header.addStretch()
+        disk_header.addWidget(self._disk_selector)
         disk_header.addWidget(self._disk_value)
         disk_layout.addLayout(disk_header)
 
@@ -233,7 +171,7 @@ class MonitorWindow(QMainWindow):
         self._worker.alert_settings_loaded.connect(self._alerts.set_settings)
         self._worker.alert_settings_saved.connect(self._alerts.settings_result)
         self._worker.alert_history_loaded.connect(self._alerts.show_history)
-        self._worker.alerts_created.connect(self._show_alerts)
+        self._worker.alerts_created.connect(self._alert_popup.show_alerts)
         self._worker.alerts_created.connect(self._alerts.new_alerts)
         self._alerts.settings_requested.connect(self._worker.save_alert_settings)
         self._alerts.history_requested.connect(self._worker.load_alert_history)
@@ -264,17 +202,6 @@ class MonitorWindow(QMainWindow):
     @Slot(str)
     def _show_storage_error(self, message: str) -> None:
         self.statusBar().showMessage(message, 8000)
-
-    @Slot(object)
-    def _show_alerts(self, alerts: list[Alert]) -> None:
-        latest = alerts[0]
-        resource = RESOURCE_LABELS[latest.resource]
-        extra = f" · ещё {len(alerts) - 1}" if len(alerts) > 1 else ""
-        self._alert_notice.setText(
-            f"Порог превышен · {resource} {_percent(latest.measured)} > {latest.threshold} %{extra}"
-        )
-        self._alert_notice.show()
-        self._alert_timer.start(10_000)
 
     @Slot()
     def _request_sample(self) -> None:
@@ -331,7 +258,9 @@ class MonitorWindow(QMainWindow):
                 self._disk_selector.clear()
                 for path, device in new_options:
                     label = f"{path} · {device}" if device else path
-                    self._disk_selector.addItem(label, path)
+                    self._disk_selector.addItem(path, path)
+                    index = self._disk_selector.count() - 1
+                    self._disk_selector.setItemData(index, label, Qt.ItemDataRole.ToolTipRole)
                 preferred = selected or "/System/Volumes/Data"
                 index = self._disk_selector.findData(preferred)
                 self._disk_selector.setCurrentIndex(max(0, index))
@@ -342,6 +271,9 @@ class MonitorWindow(QMainWindow):
     def _show_selected_disk(self) -> None:
         disk = self._disks.get(self._disk_selector.currentData())
         self._api.status.publish(self._snapshot, disk)
+        self._disk_selector.setToolTip(
+            self._disk_selector.currentData(Qt.ItemDataRole.ToolTipRole) or ""
+        )
         percent = disk.usage_percent if disk is not None else None
         self._disk_value.setText(_percent(percent))
         if disk is None or percent is None:
@@ -376,6 +308,20 @@ class MonitorWindow(QMainWindow):
         self._files.stop()
         self._processes.stop()
         self._history.stop()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self._alert_popup.isVisible():
+            self._alert_popup.reposition()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._alert_popup.isVisible():
+            self._alert_popup.reposition()
+
+    def hideEvent(self, event) -> None:
+        self._alert_popup.dismiss()
+        super().hideEvent(event)
 
     def closeEvent(self, event) -> None:
         self.stop_workers()

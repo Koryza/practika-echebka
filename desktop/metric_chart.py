@@ -5,6 +5,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
+from .theme import CHART_GRID, CHART_LABEL
+
 
 class MetricChart(QWidget):
     def __init__(self, color: str, accessible_name: str) -> None:
@@ -12,7 +14,7 @@ class MetricChart(QWidget):
         self._color = QColor(color)
         self._points: deque[tuple[datetime, float | None]] = deque(maxlen=60)
         self.setAccessibleName(accessible_name)
-        self.setMinimumHeight(172)
+        self.setMinimumHeight(144)
 
     def add_sample(self, timestamp: datetime, value: float | None) -> None:
         self._points.append((timestamp, value))
@@ -22,11 +24,13 @@ class MetricChart(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         plot = QRectF(44, 12, self.width() - 56, self.height() - 38)
+        grid = QColor(CHART_GRID)
+        labels = QColor(CHART_LABEL)
         for percent in (0, 25, 50, 75, 100):
             y = plot.bottom() - plot.height() * percent / 100
-            painter.setPen(QColor("#2a3546"))
+            painter.setPen(grid)
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-            painter.setPen(QColor("#9eaec6"))
+            painter.setPen(labels)
             painter.drawText(
                 QRectF(0, y - 8, 37, 16),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
@@ -58,10 +62,16 @@ class MetricChart(QWidget):
                 path.moveTo(point)
             has_previous = True
 
-        painter.setPen(QPen(self._color, 2))
+        trace = QPen(self._color, 2)
+        trace.setCapStyle(Qt.PenCapStyle.RoundCap)
+        trace.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(trace)
         painter.drawPath(path)
         painter.drawPoints(markers)
-        painter.setPen(QColor("#9eaec6"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._color)
+        painter.drawEllipse(markers[-1], 3, 3)
+        painter.setPen(labels)
         time_axis = QRectF(plot.left(), plot.bottom() + 7, plot.width(), 19)
         painter.drawText(time_axis, Qt.AlignmentFlag.AlignLeft, start.astimezone().strftime("%H:%M:%S"))
         if start != end:

@@ -83,6 +83,7 @@ class FilesPanel(QWidget):
         layout.addWidget(self._path)
 
         self._table = QTableWidget(0, 4)
+        self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)

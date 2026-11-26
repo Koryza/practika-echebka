@@ -76,6 +76,7 @@ class AlertsPanel(QWidget):
         layout.addWidget(hint)
 
         self._table = QTableWidget(0, 5)
+        self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(["Время", "Ресурс", "Том", "Замер", "Порог"])
         self._table.verticalHeader().hide()
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)

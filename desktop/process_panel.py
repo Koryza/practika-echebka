@@ -123,6 +123,7 @@ class ProcessPanel(QWidget):
         layout.addLayout(actions)
 
         self._table = QTableWidget(0, 4)
+        self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(["PID", "Название", "Память", "Запущен через"])
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._table.setColumnWidth(0, 85)
